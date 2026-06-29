@@ -1,0 +1,51 @@
+{
+  "name": "gsm-vpn-client-windows",
+  "version": "0.1.0",
+  "description": "GSM-VPN Windows client",
+  "author": "Codex",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "electron -r tsx/cjs src/main/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "build:win": "npm run build && electron-builder --win --x64",
+    "start": "electron dist/main/main.js",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@zaemoru/elements": "^1.0.1",
+    "@zaemoru/tokens": "0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "com.gsmvpn.client",
+    "productName": "GSM VPN",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/GSM_VPN.ico",
+        "to": "GSM_VPN.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/GSM_VPN.ico"
+    }
+  }
+}
