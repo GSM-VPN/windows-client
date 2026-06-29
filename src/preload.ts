@@ -128,7 +128,15 @@ async function connect(serverIdInput: string): Promise<ConnectResult> {
     throw new Error("Please sign in first.");
   }
 
-  const serverId = serverIdInput || initialState.selectedServerId || initialState.servers[0]?.id;
+  if (initialState.servers.length === 0) {
+    await refreshServers();
+  }
+
+  const best = initialState.servers.reduce<typeof initialState.servers[0] | null>(
+    (b, s) => !b || s.loadPercent < b.loadPercent ? s : b,
+    null,
+  );
+  const serverId = serverIdInput || best?.id || "";
   if (!serverId) {
     throw new Error("No VPN server is available.");
   }

@@ -6,7 +6,6 @@ export function createHeroSection(): {
   statusLabel: HTMLElement;
   sessionValue: HTMLElement;
   serverValue: HTMLElement;
-  addressValue: HTMLElement;
 } {
   const panel = createElement("div", { className: "panel-left" });
 
@@ -26,8 +25,7 @@ export function createHeroSection(): {
   const statList = createElement("div", { className: "stat-list" });
   const sessionRow = makeStatRow("Session", "Not signed in");
   const serverRow  = makeStatRow("Server",  "No server selected");
-  const addressRow = makeStatRow("Address", "Unassigned");
-  statList.append(sessionRow, serverRow, addressRow);
+  statList.append(sessionRow, serverRow);
 
   panel.append(logoWrap, statusEl, divider, sectionLabel, statList);
 
@@ -37,7 +35,6 @@ export function createHeroSection(): {
     statusLabel,
     sessionValue: sessionRow.querySelector(".stat-value") as HTMLElement,
     serverValue:  serverRow.querySelector(".stat-value")  as HTMLElement,
-    addressValue: addressRow.querySelector(".stat-value") as HTMLElement,
   };
 }
 

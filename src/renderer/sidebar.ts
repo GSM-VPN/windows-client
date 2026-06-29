@@ -1,40 +1,44 @@
 import { createElement } from "./components.js";
 
 export type SidebarRefs = {
-  serversEl: HTMLDivElement;
-  refreshEl: HTMLElement;
-  toggleEl: HTMLElement;
+  toggleEl: HTMLButtonElement;
+  wrapEl: HTMLElement;
+  labelEl: HTMLElement;
   errorEl: HTMLDivElement;
 };
 
 export function createSidebarSection(): { sidebar: HTMLElement; refs: SidebarRefs } {
   const panel = createElement("div", { className: "panel-right" });
-  const inner = createElement("div", { className: "panel-inner" });
 
-  const serverSection = createElement("div", { className: "right-section" });
-  serverSection.append(createElement("div", { className: "section-label", textContent: "Servers" }));
-  const serversEl = createElement("div", { className: "server-list" }) as HTMLDivElement;
-  serverSection.append(serversEl);
+  const wrapEl = createElement("div", { className: "power-btn-wrap" }) as HTMLElement;
+  wrapEl.dataset.state = "disconnected";
+  wrapEl.append(
+    createElement("span", { className: "power-ripple" }),
+    createElement("span", { className: "power-ripple" }),
+  );
 
-  const toggleEl  = makeBtn("toggle",  "Connect",         "btn--primary");
-  const refreshEl = makeBtn("refresh", "Refresh servers", "btn--secondary");
+  const toggleEl = document.createElement("button");
+  toggleEl.type = "button";
+  toggleEl.id = "toggle";
+  toggleEl.className = "power-btn";
+  toggleEl.innerHTML = `
+    <svg class="icon-unlock" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+    </svg>
+    <svg class="icon-lock" width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  `;
+  wrapEl.append(toggleEl);
 
-  const actionStack = createElement("div", { className: "action-stack" });
-  actionStack.append(toggleEl, refreshEl);
-
+  const labelEl = createElement("div", { className: "power-label", textContent: "Not connected" }) as HTMLElement;
   const errorEl = createElement("div", { className: "error-text" }) as HTMLDivElement;
 
-  inner.append(serverSection, actionStack, errorEl);
-  panel.append(inner);
+  const powerSection = createElement("div", { className: "power-section" });
+  powerSection.append(wrapEl, labelEl);
+  panel.append(powerSection, errorEl);
 
-  return { sidebar: panel, refs: { serversEl, refreshEl, toggleEl, errorEl } };
-}
-
-function makeBtn(id: string, text: string, variant: string): HTMLButtonElement {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.id = id;
-  btn.className = `btn ${variant}`;
-  btn.textContent = text;
-  return btn;
+  return { sidebar: panel, refs: { toggleEl, wrapEl, labelEl, errorEl } };
 }

@@ -2,7 +2,6 @@ import type { ClientState } from "../shared/types.js";
 import { createElement } from "./components.js";
 import { createHeroSection } from "./hero.js";
 import { createLoginView } from "./login.js";
-import { renderServerList } from "./server-list.js";
 import { createSidebarSection, type SidebarRefs } from "./sidebar.js";
 
 type AppBridge = {
@@ -19,7 +18,6 @@ type MainRefs = SidebarRefs & {
   statusLabel: HTMLElement;
   sessionValue: HTMLElement;
   serverValue: HTMLElement;
-  addressValue: HTMLElement;
 };
 
 function renderMainState(bridge: AppBridge, refs: MainRefs): void {
@@ -27,29 +25,14 @@ function renderMainState(bridge: AppBridge, refs: MainRefs): void {
   const connected = s.connected;
 
   refs.statusEl.dataset.connected = String(connected);
-  refs.statusLabel.textContent    = connected ? "Connected" : "Not connected";
-  refs.toggleEl.textContent       = connected ? "Disconnect" : "Connect";
-  refs.toggleEl.className         = connected ? "btn btn--danger" : "btn btn--primary";
-  refs.errorEl.textContent        = s.lastError ?? "";
+  refs.statusLabel.textContent = connected ? "Connected" : "Not connected";
+  refs.wrapEl.dataset.state = connected ? "connected" : "disconnected";
+  refs.labelEl.textContent = connected ? "Connected" : "Not connected";
+  refs.toggleEl.disabled = false;
+  refs.errorEl.textContent = s.lastError ?? "";
 
   refs.sessionValue.textContent = s.signedIn ? s.email : "Not signed in";
-  refs.serverValue.textContent  = s.connection?.serverId ?? s.selectedServerId ?? "No server selected";
-  refs.addressValue.textContent = s.connection?.clientAddress ?? "Unassigned";
-
-  renderServerList(refs.serversEl, s.servers, s.selectedServerId);
-
-  for (const node of refs.serversEl.querySelectorAll<HTMLButtonElement>("[data-server-id]")) {
-    node.addEventListener("click", async () => {
-      const serverId = node.dataset.serverId;
-      if (!serverId) return;
-      try {
-        await bridge.connect(serverId);
-        renderMainState(bridge, refs);
-      } catch (err) {
-        refs.errorEl.textContent = err instanceof Error ? err.message : String(err);
-      }
-    });
-  }
+  refs.serverValue.textContent  = s.connection?.serverId ?? "—";
 }
 
 export function mountApp(root: HTMLElement, bridge: AppBridge): void {
@@ -63,14 +46,14 @@ export function mountApp(root: HTMLElement, bridge: AppBridge): void {
   flipFront.append(loginEl);
 
   const flipBack = createElement("div", { className: "flip-back" });
-  const { hero, statusEl, statusLabel, sessionValue, serverValue, addressValue } = createHeroSection();
+  const { hero, statusEl, statusLabel, sessionValue, serverValue } = createHeroSection();
   const { sidebar, refs: mainRefs } = createSidebarSection();
   const appLayout = createElement("div", { className: "app-layout" });
   appLayout.append(hero, sidebar);
   flipBack.append(appLayout);
 
   const allMainRefs: MainRefs = {
-    statusEl, statusLabel, sessionValue, serverValue, addressValue,
+    statusEl, statusLabel, sessionValue, serverValue,
     ...mainRefs,
   };
 
@@ -102,7 +85,6 @@ export function mountApp(root: HTMLElement, bridge: AppBridge): void {
       await bridge.refreshServers();
 
       renderMainState(bridge, allMainRefs);
-      /* slight delay so the main view renders before the flip starts */
       requestAnimationFrame(() => flipCard.classList.add("flipped"));
     } catch (err) {
       loginRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
@@ -111,28 +93,23 @@ export function mountApp(root: HTMLElement, bridge: AppBridge): void {
     }
   });
 
-  mainRefs.refreshEl.addEventListener("click", async () => {
-    try {
-      await bridge.refreshServers();
-      renderMainState(bridge, allMainRefs);
-    } catch (err) {
-      mainRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
-    }
-  });
-
   mainRefs.toggleEl.addEventListener("click", async () => {
     const s = bridge.getState();
+    mainRefs.toggleEl.disabled = true;
+    mainRefs.wrapEl.dataset.state = "connecting";
+
     try {
       if (s.connected) {
+        mainRefs.labelEl.textContent = "Disconnecting...";
         await bridge.disconnect();
       } else {
-        const target = s.selectedServerId ?? s.servers[0]?.id;
-        if (!target) throw new Error("No server selected.");
-        await bridge.connect(target);
+        mainRefs.labelEl.textContent = "Connecting...";
+        await bridge.connect("");
       }
     } catch (err) {
       mainRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
     }
+
     renderMainState(bridge, allMainRefs);
   });
 }

@@ -214,7 +214,8 @@ body {
   padding: 32px 28px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
 }
 .panel-inner { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 28px; }
 .app-logo { display: flex; align-items: center; gap: 10px; }
@@ -391,13 +392,15 @@ body {
 .flip-card { width: 100%; height: 100%; position: relative; }
 .flip-front, .flip-back { position: absolute; inset: 0; }
 .flip-front {
-  transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.22s ease;
+  transform-origin: center center;
+  transition: transform 0.2s cubic-bezier(0.55, 0, 1, 0.45), opacity 0.18s ease;
 }
 .flip-back {
-  transform: scale(0.9);
+  transform: scale(0);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1) 0.18s, opacity 0.3s ease 0.18s;
+  transform-origin: center center;
+  transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) 0.16s, opacity 0.28s ease 0.16s;
 }
 .flip-card.flipped .flip-front {
   transform: scale(0);
@@ -456,4 +459,100 @@ body {
   border-top-color: #fff;
   border-radius: 50%;
   animation: _spin 0.7s linear infinite;
+}
+
+.power-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+.power-btn-wrap {
+  position: relative;
+  width: 136px;
+  height: 136px;
+}
+
+.power-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--zm-color-success);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.power-btn-wrap[data-state="connected"] .power-ripple:nth-child(1) {
+  animation: _ripple-out 2s ease-out infinite;
+}
+
+.power-btn-wrap[data-state="connected"] .power-ripple:nth-child(2) {
+  animation: _ripple-out 2s ease-out infinite 1s;
+}
+
+@keyframes _ripple-out {
+  0%   { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+.power-btn {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 4px solid var(--zm-color-danger);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--zm-color-danger);
+  transition: border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+  box-shadow: 0 0 0 0 transparent;
+  z-index: 1;
+  outline: none;
+}
+
+.power-btn:hover:not(:disabled) {
+  box-shadow: 0 0 28px rgba(240, 68, 82, 0.3);
+}
+
+.power-btn:disabled { cursor: default; opacity: 0.6; }
+
+.power-btn .icon-lock { display: none; }
+
+.power-btn-wrap[data-state="connected"] .power-btn {
+  border-color: var(--zm-color-success);
+  color: var(--zm-color-success);
+}
+
+.power-btn-wrap[data-state="connected"] .power-btn:hover {
+  box-shadow: 0 0 28px rgba(0, 196, 113, 0.3);
+}
+
+.power-btn-wrap[data-state="connected"] .power-btn .icon-unlock { display: none; }
+.power-btn-wrap[data-state="connected"] .power-btn .icon-lock  { display: block; }
+
+.power-btn::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: var(--zm-color-danger);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.power-btn-wrap[data-state="connecting"] .power-btn::before {
+  opacity: 1;
+  animation: _spin 0.85s linear infinite;
+}
+
+.power-label {
+  font-size: var(--zm-font-size-md);
+  font-weight: var(--zm-font-weight-semibold);
+  color: var(--zm-color-text-subtle);
+  letter-spacing: var(--zm-letter-spacing-tight);
 }
