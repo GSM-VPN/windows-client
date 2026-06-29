@@ -69,14 +69,20 @@ export function mountApp(root: HTMLElement, bridge: AppBridge): void {
   appLayout.append(hero, sidebar);
   flipBack.append(appLayout);
 
-  flipCard.append(flipFront, flipBack);
-  flipContainer.append(flipCard);
-  root.append(flipContainer);
-
   const allMainRefs: MainRefs = {
     statusEl, statusLabel, sessionValue, serverValue, addressValue,
     ...mainRefs,
   };
+
+  flipCard.append(flipFront, flipBack);
+  flipContainer.append(flipCard);
+
+  if (bridge.getState().signedIn) {
+    renderMainState(bridge, allMainRefs);
+    flipCard.classList.add("flipped");
+  }
+
+  root.append(flipContainer);
 
   loginRefs.emailEl.addEventListener("input", () =>
     bridge.setCredentials(loginRefs.emailEl.value, loginRefs.inviteCodeEl.value),

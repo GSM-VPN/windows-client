@@ -87,6 +87,11 @@ async function signIn(payload: LoginPayload): Promise<LoginResult> {
   initialState.inviteCode = payload.inviteCode;
   initialState.sessionToken = data.accessToken;
   setError(null);
+  await ipcRenderer.invoke("gsm-vpn:save-session", {
+    email: payload.email,
+    inviteCode: payload.inviteCode,
+    sessionToken: data.accessToken,
+  });
   return data;
 }
 
@@ -196,6 +201,21 @@ const bridge: AppBridge = {
 
 contextBridge.exposeInMainWorld("gsmVpn", bridge);
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
+  type SavedSession = { email: string; inviteCode: string; sessionToken: string };
+  const saved = await ipcRenderer.invoke("gsm-vpn:load-session") as SavedSession | null;
+  if (saved?.sessionToken) {
+    initialState.signedIn = true;
+    initialState.email = saved.email;
+    initialState.inviteCode = saved.inviteCode;
+    initialState.sessionToken = saved.sessionToken;
+    try {
+      await refreshServers();
+    } catch {
+      initialState.signedIn = false;
+      initialState.sessionToken = null;
+      await ipcRenderer.invoke("gsm-vpn:clear-session");
+    }
+  }
   mountApp(document.body, bridge);
 });

@@ -1,11 +1,21 @@
-import { app, BrowserWindow, ipcMain } from "electron";
-import { existsSync, readFileSync } from "fs";
+import { app, BrowserWindow, ipcMain, Tray, Menu } from "electron";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createKeyPair, installTunnel, uninstallTunnel } from "./wireguard.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+type SavedSession = { email: string; inviteCode: string; sessionToken: string };
+
+let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+
+function getSessionPath(): string {
+  return path.join(app.getPath("userData"), "session.json");
+}
 
 // Load .env for dev mode (in production the value is baked in by esbuild at build time)
 (function loadDotEnv(): void {
@@ -62,10 +72,46 @@ function registerIpcHandlers(): void {
     await uninstallTunnel(payload.serverId);
     return { ok: true };
   });
+
+  ipcMain.handle("gsm-vpn:load-session", (): SavedSession | null => {
+    const p = getSessionPath();
+    if (!existsSync(p)) return null;
+    try {
+      const data = JSON.parse(readFileSync(p, "utf8")) as Partial<SavedSession>;
+      if (data.sessionToken) return data as SavedSession;
+    } catch { /* ignore */ }
+    return null;
+  });
+
+  ipcMain.handle("gsm-vpn:save-session", (_event, data: SavedSession): void => {
+    writeFileSync(getSessionPath(), JSON.stringify(data), "utf8");
+  });
+
+  ipcMain.handle("gsm-vpn:clear-session", (): void => {
+    const p = getSessionPath();
+    if (existsSync(p)) writeFileSync(p, "{}", "utf8");
+  });
+}
+
+function createTray(): void {
+  const iconPath = resolveIconPath();
+  if (!iconPath) return;
+
+  tray = new Tray(iconPath);
+  tray.setToolTip("GSM VPN");
+  tray.on("click", () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Open", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { type: "separator" },
+    { label: "Quit", click: () => { isQuitting = true; app.quit(); } },
+  ]));
 }
 
 async function createMainWindow(): Promise<void> {
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 820,
     backgroundColor: "#ffffff",
@@ -77,23 +123,23 @@ async function createMainWindow(): Promise<void> {
     },
   });
 
-  await window.loadFile(path.join(__dirname, "../renderer/index.html"));
+  mainWindow.on("close", (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+
+  await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
 
 app.whenReady().then(async (): Promise<void> => {
   registerIpcHandlers();
   app.setAppUserModelId("com.gsmvpn.client");
   await createMainWindow();
-
-  app.on("activate", async (): Promise<void> => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow();
-    }
-  });
+  createTray();
 });
 
-app.on("window-all-closed", (): void => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+app.on("before-quit", (): void => {
+  isQuitting = true;
 });
