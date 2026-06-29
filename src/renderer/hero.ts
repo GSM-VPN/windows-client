@@ -1,52 +1,51 @@
-import { createBadge, createElement, createHeading, createStat } from "./components.js";
+import { createElement } from "./components.js";
 
 export function createHeroSection(): {
   hero: HTMLElement;
+  statusEl: HTMLElement;
   statusLabel: HTMLElement;
   sessionValue: HTMLElement;
   serverValue: HTMLElement;
   addressValue: HTMLElement;
 } {
-  const hero = createElement("section", { className: "hero" });
-  hero.append(
-    createElement("p", { className: "eyebrow", textContent: "Private access control" }),
-    createElement("h1", { textContent: "GSM-VPN" }),
-    createElement("p", {
-      textContent:
-        "Private VPN client for a small trusted group. Sign in, pick the lightest server, and connect with a calm, clear interface built on zaemoru.",
-    }),
-  );
+  const panel = createElement("div", { className: "panel-left" });
 
-  const status = createElement("div", { className: "status" });
-  const dot = createElement("span", { className: "dot" });
-  const statusLabel = createElement("span", { textContent: "Loading state..." });
-  status.append(dot, statusLabel);
-  hero.append(status);
+  const logoWrap = createElement("div", { className: "app-logo" });
+  const logoName = createElement("span", { className: "app-logo-name", textContent: "GSM VPN" });
+  logoWrap.append(logoName);
 
-  const section = createElement("div", { className: "section" });
-  section.append(createHeading("Why this layout", "large"));
+  const statusEl = createElement("div", { className: "status-pill" });
+  statusEl.dataset.connected = "false";
+  const dot = createElement("span", { className: "status-pill-dot" });
+  const statusLabel = createElement("span", { textContent: "Not connected" });
+  statusEl.append(dot, statusLabel);
 
-  const pillRow = createElement("div", { className: "pillRow" });
-  pillRow.append(
-    createBadge("Clear state", "blue", "fill"),
-    createBadge("Low noise", "teal", "weak"),
-    createBadge("Few clicks", "green", "fill"),
-  );
-  section.append(pillRow);
+  const divider = createElement("div", { className: "panel-divider" });
+  const sectionLabel = createElement("div", { className: "section-label", textContent: "Connection" });
 
-  const stats = createElement("div", { className: "stats" });
-  const sessionStat = createStat("Session", "Not signed in");
-  const serverStat = createStat("Server", "No server selected");
-  const addressStat = createStat("Address", "Unassigned");
-  stats.append(sessionStat, serverStat, addressStat);
-  section.append(stats);
-  hero.append(section);
+  const statList = createElement("div", { className: "stat-list" });
+  const sessionRow = makeStatRow("Session", "Not signed in");
+  const serverRow  = makeStatRow("Server",  "No server selected");
+  const addressRow = makeStatRow("Address", "Unassigned");
+  statList.append(sessionRow, serverRow, addressRow);
+
+  panel.append(logoWrap, statusEl, divider, sectionLabel, statList);
 
   return {
-    hero,
+    hero: panel,
+    statusEl,
     statusLabel,
-    sessionValue: sessionStat.querySelector("strong") as HTMLElement,
-    serverValue: serverStat.querySelector("strong") as HTMLElement,
-    addressValue: addressStat.querySelector("strong") as HTMLElement,
+    sessionValue: sessionRow.querySelector(".stat-value") as HTMLElement,
+    serverValue:  serverRow.querySelector(".stat-value")  as HTMLElement,
+    addressValue: addressRow.querySelector(".stat-value") as HTMLElement,
   };
+}
+
+function makeStatRow(label: string, value: string): HTMLElement {
+  const row = createElement("div", { className: "stat-row" });
+  row.append(
+    createElement("div", { className: "stat-label", textContent: label }),
+    createElement("div", { className: "stat-value", textContent: value }),
+  );
+  return row;
 }

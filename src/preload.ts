@@ -1,11 +1,5 @@
-import { contextBridge } from "electron";
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { contextBridge, ipcRenderer } from "electron";
 import { mountApp } from "./renderer/app.js";
-import { createWireGuardKeyPair } from "./shared/wireguard.js";
 import type { ClientState, ConnectResult, LoginResult, ServersResult } from "./shared/types.js";
 
 type LoginPayload = {
@@ -16,6 +10,7 @@ type LoginPayload = {
 
 type AppBridge = {
   getState: () => ClientState;
+  getFixedGateway: () => string;
   setGatewayUrl: (gatewayUrl: string) => void;
   setCredentials: (email: string, inviteCode: string) => void;
   signIn: (payload: { email: string; inviteCode: string }) => Promise<unknown>;
@@ -24,6 +19,13 @@ type AppBridge = {
   disconnect: () => Promise<{ ok: true }>;
 };
 
+type KeyPair = {
+  publicKey: string;
+  privateKey: string;
+};
+
+const FIXED_GATEWAY: string = process.env.GATEWAY_URL ?? "";
+
 const initialState: ClientState = {
   signedIn: false,
   sessionToken: null,
@@ -31,12 +33,14 @@ const initialState: ClientState = {
   inviteCode: "",
   selectedServerId: null,
   connected: false,
-  gatewayUrl: "http://127.0.0.1:8080",
+  gatewayUrl: FIXED_GATEWAY || "http://127.0.0.1:8080",
   servers: [],
   clientKeyPair: null,
   connection: null,
   lastError: null,
 };
+
+const deviceId = globalThis.crypto?.randomUUID?.() ?? `gsm-vpn-${Date.now()}`;
 
 function setError(message: string | null): void {
   initialState.lastError = message;
@@ -96,111 +100,24 @@ async function refreshServers(): Promise<ServersResult> {
   return data;
 }
 
-function getWireGuardExecutablePath(): string | null {
-  if (process.platform !== "win32") {
-    return null;
-  }
-
-  const candidates = [
-    path.join(process.env.ProgramFiles ?? "C:\\Program Files", "WireGuard", "wireguard.exe"),
-    path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "WireGuard", "wireguard.exe"),
-  ];
-
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+async function createKeyPair(): Promise<KeyPair> {
+  return (await ipcRenderer.invoke("gsm-vpn:create-keypair")) as KeyPair;
 }
 
-async function downloadWireGuardInstaller(): Promise<string> {
-  const installerUrl = "https://download.wireguard.com/windows-client/wireguard-installer.exe";
-  const targetDir = await mkdtemp(path.join(os.tmpdir(), "gsm-vpn-wireguard-"));
-  const installerPath = path.join(targetDir, "wireguard-installer.exe");
-  const response = await fetch(installerUrl);
-  if (!response.ok) {
-    throw new Error("Unable to download WireGuard installer.");
+async function installTunnel(result: ConnectResult): Promise<void> {
+  if (!initialState.clientKeyPair) {
+    throw new Error("Client key pair is missing.");
   }
 
-  const bytes = Buffer.from(await response.arrayBuffer());
-  await writeFile(installerPath, bytes);
-
-  return installerPath;
-}
-
-async function ensureWireGuardInstalled(): Promise<string> {
-  const existing = getWireGuardExecutablePath();
-  if (existing) {
-    return existing;
-  }
-
-  if (process.platform !== "win32") {
-    throw new Error("WireGuard is required on Windows.");
-  }
-
-  const installerPath = await downloadWireGuardInstaller();
-
-  await new Promise<void>((resolve, reject) => {
-    execFile(installerPath, [], { windowsHide: true }, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
+  await ipcRenderer.invoke("gsm-vpn:install-tunnel", {
+    serverId: result.selectedServer.id,
+    privateKey: initialState.clientKeyPair.privateKey,
+    connection: result.connection,
   });
-
-  const installed = getWireGuardExecutablePath();
-  if (!installed) {
-    throw new Error("WireGuard installation finished, but the executable was not found.");
-  }
-
-  return installed;
-}
-
-async function runWireGuard(argumentsList: string[]): Promise<void> {
-  const exePath = await ensureWireGuardInstalled();
-
-  await new Promise<void>((resolve, reject) => {
-    execFile(exePath, argumentsList, { windowsHide: true }, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
-}
-
-async function installTunnelConfig(result: ConnectResult): Promise<void> {
-  if (process.platform !== "win32") {
-    return;
-  }
-
-  const tunnelName = `gsm-vpn-${result.selectedServer.id}`;
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "gsm-vpn-"));
-  const configPath = path.join(tempDir, `${tunnelName}.conf`);
-  const config = [
-    "[Interface]",
-    `PrivateKey = ${initialState.clientKeyPair?.privateKey ?? ""}`,
-    `Address = ${result.connection.clientAddress}`,
-    "DNS = 1.1.1.1",
-    "",
-    "[Peer]",
-    `PublicKey = ${result.connection.publicKey}`,
-    `AllowedIPs = ${result.connection.allowedIps.join(", ")}`,
-    `Endpoint = ${result.connection.endpoint}`,
-    "PersistentKeepalive = 25",
-    "",
-  ].join("\n");
-
-  await writeFile(configPath, config, "utf8");
-  await runWireGuard(["/installtunnelservice", configPath]);
 }
 
 async function removeTunnel(serverId: string): Promise<void> {
-  if (process.platform !== "win32") {
-    return;
-  }
-
-  const tunnelName = `gsm-vpn-${serverId}`;
-  await runWireGuard(["/uninstalltunnelservice", tunnelName]);
+  await ipcRenderer.invoke("gsm-vpn:remove-tunnel", { serverId });
 }
 
 async function connect(serverIdInput: string): Promise<ConnectResult> {
@@ -214,7 +131,7 @@ async function connect(serverIdInput: string): Promise<ConnectResult> {
   }
 
   if (!initialState.clientKeyPair) {
-    initialState.clientKeyPair = createWireGuardKeyPair();
+    initialState.clientKeyPair = await createKeyPair();
   }
 
   const response = await apiFetch<{ ok: true; selectedServer: ServersResult["servers"][number]; connection: ConnectResult["connection"] }>(
@@ -224,7 +141,7 @@ async function connect(serverIdInput: string): Promise<ConnectResult> {
       body: JSON.stringify({
         serverId,
         clientPublicKey: initialState.clientKeyPair.publicKey,
-        deviceId: `${os.hostname()}-${process.pid}`,
+        deviceId,
       }),
     },
   );
@@ -234,7 +151,7 @@ async function connect(serverIdInput: string): Promise<ConnectResult> {
   initialState.connected = true;
   setError(null);
 
-  await installTunnelConfig({
+  await installTunnel({
     selectedServer: response.selectedServer,
     connection: response.connection,
   });
@@ -269,8 +186,9 @@ async function disconnect(): Promise<{ ok: true }> {
 
 const bridge: AppBridge = {
   getState: (): ClientState => initialState,
+  getFixedGateway: (): string => FIXED_GATEWAY,
   setGatewayUrl: (gatewayUrl: string): void => {
-    initialState.gatewayUrl = gatewayUrl;
+    if (!FIXED_GATEWAY) initialState.gatewayUrl = gatewayUrl;
   },
   setCredentials: (email: string, inviteCode: string): void => {
     initialState.email = email;

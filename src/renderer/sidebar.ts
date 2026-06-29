@@ -1,4 +1,4 @@
-import { createActionButton, createElement, createInputField, createListHeader } from "./components.js";
+import { createElement } from "./components.js";
 
 export type SidebarRefs = {
   serversEl: HTMLDivElement;
@@ -11,64 +11,75 @@ export type SidebarRefs = {
   errorEl: HTMLDivElement;
 };
 
-export function createSidebarSection(): { sidebar: HTMLElement; refs: SidebarRefs } {
-  const sidebar = createElement("aside", { className: "sidebar" });
-  const card = document.createElement("zm-card");
-  const serverSection = createElement("div", { className: "section" });
-  const serversEl = createElement("div", { className: "list" }) as HTMLDivElement;
+export function createSidebarSection(opts: { fixedGateway?: string } = {}): { sidebar: HTMLElement; refs: SidebarRefs } {
+  const { fixedGateway = "" } = opts;
 
-  serverSection.append(createListHeader("Server selection", "Pick the lightest available VPN server."), serversEl);
-  card.append(serverSection);
-  sidebar.append(card);
+  const panel = createElement("div", { className: "panel-right" });
+  const inner = createElement("div", { className: "panel-inner" });
 
-  const gatewayUrlEl = createElement("input", {
-    attributes: { id: "gatewayUrl", type: "text", value: "http://127.0.0.1:8080" },
-  }) as HTMLInputElement;
-  const emailEl = createElement("input", {
-    attributes: { id: "email", type: "email", placeholder: "your@email.com" },
-  }) as HTMLInputElement;
-  const inviteCodeEl = createElement("input", {
-    attributes: { id: "inviteCode", type: "password", placeholder: "shared invite code" },
-  }) as HTMLInputElement;
+  const serverSection = createElement("div", { className: "right-section" });
+  serverSection.append(createElement("div", { className: "section-label", textContent: "Servers" }));
+  const serversEl = createElement("div", { className: "server-list" }) as HTMLDivElement;
+  serverSection.append(serversEl);
 
-  const inputRow = createElement("div", { className: "inputRow" });
-  inputRow.append(
-    createInputField("Gateway URL", gatewayUrlEl),
-    createInputField("Email", emailEl),
-    createInputField("Invite code", inviteCodeEl),
+  const settingsSection = createElement("div", { className: "right-section" });
+  settingsSection.append(createElement("div", { className: "section-label", textContent: "Settings" }));
+
+  const gatewayUrlEl = makeInput("gatewayUrl", "text");
+  if (fixedGateway) gatewayUrlEl.value = fixedGateway;
+  const emailEl      = makeInput("email", "email", "your@email.com");
+  const inviteCodeEl = makeInput("inviteCode", "password", "shared invite code");
+
+  const inputStack = createElement("div", { className: "input-stack" });
+  if (!fixedGateway) {
+    inputStack.append(makeField("Gateway URL", gatewayUrlEl));
+  }
+  inputStack.append(
+    makeField("Email", emailEl),
+    makeField("Invite Code", inviteCodeEl),
   );
+  settingsSection.append(inputStack);
 
-  const cta = createElement("div", { className: "cta" });
-  const signInEl = createActionButton("signIn", "Sign in");
-  const refreshEl = createActionButton("refresh", "Refresh servers");
-  const toggleEl = createActionButton("toggle", "Connect");
-  cta.append(signInEl, refreshEl, toggleEl);
+  const toggleEl  = makeBtn("toggle",  "Connect",         "btn--primary");
+  const signInEl  = makeBtn("signIn",  "Sign in",         "btn--secondary");
+  const refreshEl = makeBtn("refresh", "Refresh servers", "btn--secondary");
 
-  const errorEl = createElement("div", { className: "small" }) as HTMLDivElement;
-  errorEl.style.color = "#ff9ea1";
+  const actionStack = createElement("div", { className: "action-stack" });
+  actionStack.append(toggleEl, signInEl, refreshEl);
 
-  sidebar.append(
-    inputRow,
-    cta,
-    errorEl,
-    createElement("div", {
-      className: "small",
-      textContent: "This is the Windows client skeleton. The gateway and tunnel logic will attach next.",
-    }),
-  );
+  const errorEl = createElement("div", { className: "error-text" }) as HTMLDivElement;
+
+  inner.append(serverSection, settingsSection, actionStack, errorEl);
+  panel.append(inner);
 
   return {
-    sidebar,
-    refs: {
-      serversEl,
-      gatewayUrlEl,
-      emailEl,
-      inviteCodeEl,
-      signInEl,
-      refreshEl,
-      toggleEl,
-      errorEl,
-    },
+    sidebar: panel,
+    refs: { serversEl, gatewayUrlEl, emailEl, inviteCodeEl, signInEl, refreshEl, toggleEl, errorEl },
   };
 }
 
+function makeInput(id: string, type: string, placeholder = ""): HTMLInputElement {
+  const el = document.createElement("input");
+  el.id = id;
+  el.type = type;
+  el.className = "input-field";
+  if (placeholder) el.placeholder = placeholder;
+  return el;
+}
+
+function makeField(labelText: string, input: HTMLInputElement): HTMLElement {
+  const wrap = createElement("div", { className: "input-group" });
+  const label = createElement("label", { className: "input-label", textContent: labelText });
+  label.setAttribute("for", input.id);
+  wrap.append(label, input);
+  return wrap;
+}
+
+function makeBtn(id: string, text: string, variant: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = id;
+  btn.className = `btn ${variant}`;
+  btn.textContent = text;
+  return btn;
+}

@@ -1,27 +1,39 @@
 import type { ServerChoice } from "../shared/types.js";
-import { createElement } from "./components.js";
-
-export function createServerCard(server: ServerChoice, selected: boolean): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = selected ? "server server--selected" : "server";
-  button.dataset.serverId = server.id;
-
-  const title = createElement("strong", { textContent: server.name });
-  const meta = createElement("div", { className: "meta" });
-  const endpoint = createElement("span", { textContent: server.endpoint });
-  const load = createElement("span", { textContent: `${server.loadPercent}% load` });
-
-  meta.append(endpoint, load);
-  button.append(title, meta);
-  return button;
-}
 
 export function renderServerList(
   container: HTMLDivElement,
   servers: ServerChoice[],
   selectedServerId: string | null,
 ): void {
-  container.replaceChildren(...servers.map((server) => createServerCard(server, server.id === selectedServerId)));
+  if (servers.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "server-empty";
+    empty.textContent = "No servers — sign in and refresh.";
+    container.replaceChildren(empty);
+    return;
+  }
+  container.replaceChildren(...servers.map((s) => makeServerItem(s, s.id === selectedServerId)));
 }
 
+function makeServerItem(server: ServerChoice, selected: boolean): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = selected ? "server-item server-item--selected" : "server-item";
+  btn.dataset.serverId = server.id;
+
+  const info = document.createElement("div");
+  const name = document.createElement("span");
+  name.className = "server-name";
+  name.textContent = server.name;
+  const ep = document.createElement("span");
+  ep.className = "server-endpoint";
+  ep.textContent = server.endpoint;
+  info.append(name, ep);
+
+  const load = document.createElement("span");
+  load.className = "server-load";
+  load.textContent = `${server.loadPercent}%`;
+
+  btn.append(info, load);
+  return btn;
+}

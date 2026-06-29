@@ -2,13 +2,15 @@
   "name": "gsm-vpn-client-windows",
   "version": "0.1.0",
   "description": "GSM-VPN Windows client",
-  "author": "Codex",
+  "author": "soyuo",
   "private": true,
   "type": "module",
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "electron -r tsx/cjs src/main/main.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build:main && npm run build:preload",
+    "build:main": "tsc -p tsconfig.json",
+    "build:preload": "node scripts/build-preload.mjs",
     "build:win": "npm run build && electron-builder --win --x64",
     "start": "electron dist/main/main.js",
     "check": "tsc -p tsconfig.json --noEmit"
@@ -21,6 +23,7 @@
     "@types/node": "^22.13.4",
     "electron": "^42.5.0",
     "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },
@@ -41,6 +44,9 @@
         "to": "GSM_VPN.ico"
       }
     ],
+    "nsis": {
+      "artifactName": "GSM VPN Installer.exe"
+    },
     "win": {
       "target": [
         "nsis"

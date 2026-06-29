@@ -1,4 +1,4 @@
-import { generateKeyPairSync } from "node:crypto";
+import { generateKeyPairSync } from "crypto";
 
 export type WireGuardKeyPair = {
   publicKey: string;
@@ -20,4 +20,3 @@ export function createWireGuardKeyPair(): WireGuardKeyPair {
     privateKey: exportRawKey(Buffer.from(pair.privateKey)).toString("base64"),
   };
 }
-
