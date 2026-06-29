@@ -1,14 +1,12 @@
 import type { ClientState } from "../shared/types.js";
 import { createElement } from "./components.js";
 import { createHeroSection } from "./hero.js";
+import { createLoginView } from "./login.js";
 import { renderServerList } from "./server-list.js";
 import { createSidebarSection, type SidebarRefs } from "./sidebar.js";
-import { injectStyles } from "./styles.js";
 
 type AppBridge = {
   getState: () => ClientState;
-  getFixedGateway: () => string;
-  setGatewayUrl: (gatewayUrl: string) => void;
   setCredentials: (email: string, inviteCode: string) => void;
   signIn: (payload: { email: string; inviteCode: string }) => Promise<unknown>;
   refreshServers: () => Promise<unknown>;
@@ -16,7 +14,7 @@ type AppBridge = {
   disconnect: () => Promise<{ ok: true }>;
 };
 
-type AppRefs = SidebarRefs & {
+type MainRefs = SidebarRefs & {
   statusEl: HTMLElement;
   statusLabel: HTMLElement;
   sessionValue: HTMLElement;
@@ -24,14 +22,10 @@ type AppRefs = SidebarRefs & {
   addressValue: HTMLElement;
 };
 
-function renderState(bridge: AppBridge, refs: AppRefs): void {
+function renderMainState(bridge: AppBridge, refs: MainRefs): void {
   const s = bridge.getState();
-
-  refs.gatewayUrlEl.value = s.gatewayUrl;
-  refs.emailEl.value      = s.email;
-  refs.inviteCodeEl.value = s.inviteCode;
-
   const connected = s.connected;
+
   refs.statusEl.dataset.connected = String(connected);
   refs.statusLabel.textContent    = connected ? "Connected" : "Not connected";
   refs.toggleEl.textContent       = connected ? "Disconnect" : "Connect";
@@ -50,7 +44,7 @@ function renderState(bridge: AppBridge, refs: AppRefs): void {
       if (!serverId) return;
       try {
         await bridge.connect(serverId);
-        renderState(bridge, refs);
+        renderMainState(bridge, refs);
       } catch (err) {
         refs.errorEl.textContent = err instanceof Error ? err.message : String(err);
       }
@@ -59,48 +53,68 @@ function renderState(bridge: AppBridge, refs: AppRefs): void {
 }
 
 export function mountApp(root: HTMLElement, bridge: AppBridge): void {
-  injectStyles();
   root.replaceChildren();
 
-  const layout = createElement("div", { className: "app-layout" });
+  const flipContainer = createElement("div", { className: "flip-container" });
+  const flipCard      = createElement("div", { className: "flip-card" });
+
+  const flipFront = createElement("div", { className: "flip-front" });
+  const { loginEl, refs: loginRefs } = createLoginView();
+  flipFront.append(loginEl);
+
+  const flipBack = createElement("div", { className: "flip-back" });
   const { hero, statusEl, statusLabel, sessionValue, serverValue, addressValue } = createHeroSection();
-  const fixedGateway = bridge.getFixedGateway();
-  const { sidebar, refs } = createSidebarSection({ fixedGateway });
+  const { sidebar, refs: mainRefs } = createSidebarSection();
+  const appLayout = createElement("div", { className: "app-layout" });
+  appLayout.append(hero, sidebar);
+  flipBack.append(appLayout);
 
-  const fullRefs: AppRefs = { statusEl, statusLabel, sessionValue, serverValue, addressValue, ...refs };
+  flipCard.append(flipFront, flipBack);
+  flipContainer.append(flipCard);
+  root.append(flipContainer);
 
-  layout.append(hero, sidebar);
-  root.append(layout);
+  const allMainRefs: MainRefs = {
+    statusEl, statusLabel, sessionValue, serverValue, addressValue,
+    ...mainRefs,
+  };
 
-  if (!fixedGateway) {
-    refs.gatewayUrlEl.addEventListener("input", () => bridge.setGatewayUrl(refs.gatewayUrlEl.value));
-  }
-  refs.emailEl.addEventListener("input",      () => bridge.setCredentials(refs.emailEl.value, refs.inviteCodeEl.value));
-  refs.inviteCodeEl.addEventListener("input", () => bridge.setCredentials(refs.emailEl.value, refs.inviteCodeEl.value));
+  loginRefs.emailEl.addEventListener("input", () =>
+    bridge.setCredentials(loginRefs.emailEl.value, loginRefs.inviteCodeEl.value),
+  );
+  loginRefs.inviteCodeEl.addEventListener("input", () =>
+    bridge.setCredentials(loginRefs.emailEl.value, loginRefs.inviteCodeEl.value),
+  );
 
-  refs.signInEl.addEventListener("click", async () => {
+  loginRefs.signInEl.addEventListener("click", async () => {
+    loginRefs.signInEl.textContent = "Signing in";
+    loginRefs.signInEl.classList.add("btn--loading");
+    loginRefs.errorEl.textContent = "";
+
     try {
-      bridge.setGatewayUrl(refs.gatewayUrlEl.value);
-      bridge.setCredentials(refs.emailEl.value, refs.inviteCodeEl.value);
-      await bridge.signIn({ email: refs.emailEl.value, inviteCode: refs.inviteCodeEl.value });
+      bridge.setCredentials(loginRefs.emailEl.value, loginRefs.inviteCodeEl.value);
+      await bridge.signIn({ email: loginRefs.emailEl.value, inviteCode: loginRefs.inviteCodeEl.value });
       await bridge.refreshServers();
-      renderState(bridge, fullRefs);
+
+      renderMainState(bridge, allMainRefs);
+      /* slight delay so the main view renders before the flip starts */
+      requestAnimationFrame(() => flipCard.classList.add("flipped"));
     } catch (err) {
-      refs.errorEl.textContent = err instanceof Error ? err.message : String(err);
-      renderState(bridge, fullRefs);
+      loginRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
+      loginRefs.signInEl.textContent = "Sign in";
+      loginRefs.signInEl.classList.remove("btn--loading");
     }
   });
 
-  refs.refreshEl.addEventListener("click", async () => {
+  mainRefs.refreshEl.addEventListener("click", async () => {
     try {
       await bridge.refreshServers();
-      renderState(bridge, fullRefs);
+      renderMainState(bridge, allMainRefs);
     } catch (err) {
-      refs.errorEl.textContent = err instanceof Error ? err.message : String(err);
+      mainRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
     }
   });
 
-  refs.toggleEl.addEventListener("click", async () => {
+  mainRefs.toggleEl.addEventListener("click", async () => {
     const s = bridge.getState();
     try {
       if (s.connected) {
@@ -111,10 +125,8 @@ export function mountApp(root: HTMLElement, bridge: AppBridge): void {
         await bridge.connect(target);
       }
     } catch (err) {
-      refs.errorEl.textContent = err instanceof Error ? err.message : String(err);
+      mainRefs.errorEl.textContent = err instanceof Error ? err.message : String(err);
     }
-    renderState(bridge, fullRefs);
+    renderMainState(bridge, allMainRefs);
   });
-
-  renderState(bridge, fullRefs);
 }

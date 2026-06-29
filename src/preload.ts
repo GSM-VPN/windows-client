@@ -10,8 +10,6 @@ type LoginPayload = {
 
 type AppBridge = {
   getState: () => ClientState;
-  getFixedGateway: () => string;
-  setGatewayUrl: (gatewayUrl: string) => void;
   setCredentials: (email: string, inviteCode: string) => void;
   signIn: (payload: { email: string; inviteCode: string }) => Promise<unknown>;
   refreshServers: () => Promise<unknown>;
@@ -186,10 +184,6 @@ async function disconnect(): Promise<{ ok: true }> {
 
 const bridge: AppBridge = {
   getState: (): ClientState => initialState,
-  getFixedGateway: (): string => FIXED_GATEWAY,
-  setGatewayUrl: (gatewayUrl: string): void => {
-    if (!FIXED_GATEWAY) initialState.gatewayUrl = gatewayUrl;
-  },
   setCredentials: (email: string, inviteCode: string): void => {
     initialState.email = email;
     initialState.inviteCode = inviteCode;

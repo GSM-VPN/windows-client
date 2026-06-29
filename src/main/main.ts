@@ -77,7 +77,7 @@ async function createMainWindow(): Promise<void> {
     },
   });
 
-  await window.loadURL("about:blank");
+  await window.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
 
 app.whenReady().then(async (): Promise<void> => {
